@@ -11,8 +11,10 @@ from virtual_satellite_saa_demo.live import LiveSimulation, SimulationClock
 from virtual_satellite_saa_demo.orbit import OrbitConfig
 from virtual_satellite_saa_demo.plotting import memory_figure
 
-st.set_page_config(page_title="Satellite · SAA explorer", page_icon="🛰️", layout="wide")
-st.title("Satellite · SAA explorer")
+st.set_page_config(
+    page_title="Virtual Satellite · SAA explorer", page_icon="🛰️", layout="wide"
+)
+st.title("Virtual Satellite · SAA explorer")
 st.write(
     "Follow a low Earth orbit and discover where radiation flips bits in satellite memory."
 )
@@ -20,7 +22,9 @@ st.write(
 with st.sidebar:
     st.header("Mission controls")
     duration = st.slider("Visible history (hours)", 0.5, 24.0, 6.0, 0.5)
-    st.caption("Adjust the visible trail during a run. Up to 24 hours are retained.")
+    st.caption(
+        "Adjust the orbit trail during a run. Error markers remain from mission start."
+    )
     with st.form("mission"):
         altitude = st.slider("Altitude (km)", 160, 2000, 550, 10)
         speed = st.slider("Orbital speed multiplier", 0.25, 4.0, 1.0, 0.25)
@@ -112,10 +116,11 @@ def live_dashboard():
             "Live position follows virtual time. Pause Running to inspect retained history."
         )
     memory = view.memory_at(index)
+    mission_errors = simulation.error_history()
     cols = st.columns(5)
     cols[0].metric("Mission time", f"{track.time_s[index] / 3600:.2f} h")
-    cols[1].metric("Mission bit upsets", f"{view.total_at(index):,}")
-    cols[2].metric("Visible bit upsets", f"{radiation.counts[: index + 1].sum():,}")
+    cols[1].metric("Mission bit upsets", f"{simulation.total_upsets:,}")
+    cols[2].metric("Trail interval upsets", f"{radiation.counts[: index + 1].sum():,}")
     cols[3].metric("Bits currently changed", f"{memory.sum():,}")
     cols[4].metric("Current upset rate", f"{radiation.rate_per_second[index]:.3f} /s")
     show_areas = (
@@ -140,10 +145,12 @@ def live_dashboard():
         running=running and not catching_up,
         pace=pace,
         history_hours=duration,
+        mission_errors=mission_errors,
     )
     st.caption(
         f"Satellite: {track.latitude_deg[index]:.2f}° latitude, {track.longitude_deg[index]:.2f}° longitude. "
-        "Orange markers show intervals with errors; larger markers indicate more upsets. "
+        "Orange markers show all errors since mission start, including while browsing older positions. "
+        "Larger markers indicate more upsets. "
         + (
             "Shading shows SAA and polar radiation intensity, independent of memory sensitivity."
             if show_areas
@@ -152,7 +159,7 @@ def live_dashboard():
     )
     st.caption(
         f"Showing mission hours {track.time_s[0] / 3600:.2f}–{track.time_s[index] / 3600:.2f}. "
-        "The satellite continues beyond the history window; old points roll off the map."
+        "Older orbit points roll off the map; error markers remain until a new simulation is started."
     )
     left, right = st.columns([1, 1])
     with left:
@@ -163,17 +170,16 @@ def live_dashboard():
             "Memory and mission totals include events older than the visible history."
         )
     with right:
-        st.subheader("Visible error locations")
-        events = np.flatnonzero(radiation.counts[: index + 1])
+        st.subheader("Mission error locations")
         frame = pd.DataFrame({
-            "Time (min)": track.time_s[events] / 60,
-            "Latitude (°)": track.latitude_deg[events],
-            "Longitude (°)": track.longitude_deg[events],
-            "Upsets": radiation.counts[events],
+            "Time (min)": mission_errors[:, 0] / 60,
+            "Latitude (°)": mission_errors[:, 2],
+            "Longitude (°)": mission_errors[:, 1],
+            "Upsets": mission_errors[:, 3].astype(np.int64),
         })
         st.dataframe(frame.round(2), hide_index=True, height=240, width="stretch")
         if frame.empty:
-            st.caption("No upsets recorded at this point in the run.")
+            st.caption("No upsets recorded in this mission yet.")
         st.download_button(
             "Download error locations (CSV)",
             frame.to_csv(index=False),
@@ -194,8 +200,10 @@ point directly beneath the satellite, shown in longitude and latitude.
 The simulation starts with the selected virtual history and then advances
 continuously while this browser session is active. **Virtual seconds per real
 second** controls the pace of the demonstration; the orbital speed multiplier
-changes the orbit itself. **Visible history** changes the displayed time window
-without restarting. Pause **Running** to browse the retained history, then resume
+changes the orbit itself. **Visible history** changes only the orbit trail window.
+All recorded error locations stay on the map and in the table/CSV until a new
+simulation starts, even when browsing earlier satellite positions.
+Pause **Running** to browse the retained orbit history, then resume
 to continue from the same state. Closing/reloading the session or restarting the
 server can discard the run; this demonstration does not save missions to disk.
 

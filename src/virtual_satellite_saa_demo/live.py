@@ -1,6 +1,7 @@
-"""Incremental simulation with bounded history and refresh-independent randomness."""
+"""Incremental simulation with rolling orbit samples and complete mission errors."""
 
 from collections import deque
+from array import array
 from dataclasses import dataclass
 
 import numpy as np
@@ -45,7 +46,7 @@ class HistoryView:
 
 
 class LiveSimulation:
-    """Preserve RNG and memory across updates; retain at most 24 hours of samples."""
+    """Retain all error locations, with 24 hours of detailed orbit/memory samples."""
 
     def __init__(self, config: OrbitConfig, sensitivity: float = 1.0, seed: int = 42):
         self.config = config
@@ -56,6 +57,9 @@ class LiveSimulation:
         self._memory_rng = np.random.default_rng(memory_seed)
         self.memory = np.zeros(MEMORY_BITS, dtype=bool)
         self.total_upsets = 0
+        # Compact append-only rows: mission seconds, longitude, latitude, count.
+        # Separate from the rolling orbit buffer so error markers never expire.
+        self._error_history = array("d")
         initial = orbit_at_times(config, np.array([0.0]))
         rate = upset_rates(initial, config.altitude_km, sensitivity)[0]
         self.samples = deque([
@@ -100,6 +104,10 @@ class LiveSimulation:
         counts = self._count_rng.poisson(
             (previous + rates) * 0.5 * self.config.step_seconds
         )
+        events = counts > 0
+        self._error_history.extend(np.column_stack((
+            times[events], track.longitude_deg[events], track.latitude_deg[events], counts[events]
+        )).ravel())
         addresses = self._memory_rng.integers(0, MEMORY_BITS, size=int(counts.sum()))
         self.memory ^= flip_mask(addresses)
         self.total_upsets += len(addresses)
@@ -117,6 +125,14 @@ class LiveSimulation:
         self.sample_number = end
         while self.samples[0].time < self.time_s - RETENTION_SECONDS:
             self.samples.popleft()
+
+    def error_history(self) -> np.ndarray:
+        """All mission error intervals, including those older than the orbit trail.
+
+        Return an independent snapshot so later appends do not invalidate views.
+        Columns are mission seconds, longitude, latitude, and upset count.
+        """
+        return np.array(self._error_history).reshape(-1, 4)
 
     def view(self, history_hours: float) -> HistoryView:
         if not np.isfinite(history_hours) or not 0.1 <= history_hours <= 24:

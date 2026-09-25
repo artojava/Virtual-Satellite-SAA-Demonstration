@@ -24,6 +24,18 @@ def test_animation_keeps_all_events_and_selected_endpoint():
     assert len(payload["track"]) < 10001
 
 
+def test_mission_error_markers_are_independent_of_trail_and_scrubbing():
+    config = OrbitConfig()
+    track = orbit_at_times(config, np.array([10000.0, 10010.0]))
+    radiation = generate_errors(track, 550)
+    archive = np.array([[10, -45, -25, 2], [20000, 30, 70, 1]])
+    payload = animation_payload(track, radiation, 0, config, mission_id="mission",
+                                virtual_time=10000, running=False, pace=300,
+                                history_hours=0.5, mission_errors=archive)
+    assert payload["events"] == archive.tolist()
+    assert payload["track"][0][0] == 10000
+
+
 @pytest.mark.skipif(shutil.which("node") is None, reason="Node.js is needed for browser math checks")
 def test_javascript_matches_python_and_animation_time_is_continuous():
     cases = []

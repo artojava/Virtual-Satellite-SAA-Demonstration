@@ -38,7 +38,7 @@ external services are required during a run.
 4. Change **Visible history** at any time to shorten or extend the visible trail
    within the retained data. Switch **Running** off to pause and use the sample
    slider to inspect historical position, errors, and memory. Switch it on to resume.
-5. Inspect the visible error locations or download their CSV. Each row groups
+5. Inspect all mission error locations or download their CSV. Each row groups
    upsets at one interval endpoint; times are minutes since virtual mission start.
 
 Orbit, sensitivity, sample interval, and seed changes apply when **Start simulation**
@@ -53,11 +53,15 @@ the sample interval or generate extra radiation events. Pause and history browsi
 freeze the marker at the selected sample. If server updates stop, the marker stops
 after two seconds and displays “Waiting for update”. Leave the app running
 to accumulate virtual history: the orbit continues past the selected history
-length, and old points roll off. At most 24 hours of detailed history are retained;
-expanding the window reveals whatever history is available. Mission totals and
-memory state retain the effects of older events even after those points expire.
-The visible error count covers only the displayed track, while the mission count
-includes all upsets up to the viewed time.
+length, and old orbit points roll off. At most 24 hours of detailed orbit/memory
+samples are retained; expanding the window reveals whatever track is available.
+**All error locations remain visible from mission start**, including errors older
+than 24 hours. The table and CSV also include the complete mission error history.
+Changing the trail window, hiding radiation areas, pausing, or browsing earlier
+positions never clears error markers. Starting a new simulation resets this archive.
+Mission totals include all recorded upsets, while **Trail interval upsets** counts
+only events within the displayed orbit interval. Memory inspection still reflects
+the selected historical time, including effects of earlier events.
 
 The simulation is session-local, not a background service or disk archive. Keep
 the server and browser session open. Closing/reloading the session or restarting
@@ -121,8 +125,12 @@ discusses satellite radiation effects in the SAA and polar exposure to energetic
 particles. The numerical rates and latitude boundaries above are teaching choices.
 
 The model uses vectorized NumPy calculations. Live runs have no fixed duration;
-detailed history is capped at 24 hours with a minimum one-second step (86,401
-retained samples). Each update processes at most 4,096 new samples so long
+detailed orbit/memory history is capped at 24 hours with a minimum one-second step
+(86,401 retained samples). Error intervals are stored separately as compact
+time/longitude/latitude/count rows for the entire mission; this archive and its
+display grow with mission duration. Individual bit addresses older than 24 hours
+are not retained, but error locations and counts are preserved.
+Each update processes at most 4,096 new samples so long
 catch-up periods can be split across refreshes. Smaller intervals improve spatial
 resolution; the default ten seconds is a useful balance for interactive use.
 Dateline crossings are broken in the plot to avoid misleading connecting lines.

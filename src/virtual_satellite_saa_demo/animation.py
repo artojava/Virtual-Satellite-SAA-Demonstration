@@ -54,6 +54,7 @@ def animation_payload(
     running: bool,
     pace: float,
     history_hours: float,
+    mission_errors: np.ndarray | None = None,
 ) -> dict:
     """Send sampled history plus orbital parameters for exact sub-sample motion."""
     stop = index + 1
@@ -77,12 +78,12 @@ def animation_payload(
             track.longitude_deg[samples],
             track.latitude_deg[samples],
         )).tolist(),
-        "events": np.column_stack((
+        "events": (mission_errors if mission_errors is not None else np.column_stack((
             track.time_s[events],
             track.longitude_deg[events],
             track.latitude_deg[events],
             radiation.counts[events],
-        )).tolist(),
+        ))).tolist(),
     }
 
 

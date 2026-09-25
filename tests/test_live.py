@@ -77,3 +77,25 @@ def test_partial_intervals_and_bounded_catchup():
     assert simulation.time_s == 10000
     with pytest.raises(ValueError):
         simulation.advance_to(float("nan"))
+
+
+def test_mission_errors_survive_rollover_and_only_new_mission_starts_empty():
+    config = OrbitConfig(step_seconds=60)
+    simulation = LiveSimulation(config)
+    advance(simulation, RETENTION_SECONDS)
+    first_day = simulation.error_history()
+    assert len(first_day) > 0
+    advance(simulation, 3 * RETENTION_SECONDS)
+    entire_mission = simulation.error_history()
+    np.testing.assert_array_equal(entire_mission[:len(first_day)], first_day)
+    assert entire_mission[0, 0] < simulation.samples[0].time
+    assert entire_mission[:, 3].sum() == simulation.total_upsets
+    simulation.view(0.5)
+    simulation.view(24)
+    np.testing.assert_array_equal(simulation.error_history(), entire_mission)
+    # Equal-time updates and reads never duplicate or remove past events.
+    simulation.advance_to(simulation.time_s)
+    np.testing.assert_array_equal(simulation.error_history(), entire_mission)
+    replacement = LiveSimulation(config)
+    assert replacement.error_history().shape == (0, 4)
+    assert replacement.total_upsets == 0
