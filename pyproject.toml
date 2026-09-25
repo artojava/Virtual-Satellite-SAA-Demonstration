@@ -1,0 +1,20 @@
+[project]
+name = "virtual-satellite-saa-demo"
+version = "0.1.0"
+description = "Interactive educational satellite orbit and South Atlantic Anomaly simulation"
+readme = "README.md"
+authors = [
+    { name = "Arto Javanainen", email = "arto.javanainen@jyu.fi" }
+]
+requires-python = ">=3.13"
+dependencies = ["numpy>=2.2,<3", "matplotlib>=3.10,<4", "pandas>=2.2,<3", "streamlit>=1.45,<2"]
+
+[dependency-groups]
+dev = ["pytest>=8.3,<10"]
+
+[project.scripts]
+virtual-satellite-saa-demo = "virtual_satellite_saa_demo:main"
+
+[build-system]
+requires = ["uv_build>=0.12.10,<0.13.0"]
+build-backend = "uv_build"
