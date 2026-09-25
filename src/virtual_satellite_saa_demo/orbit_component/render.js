@@ -31,6 +31,27 @@ function line(context, positions) {
   context.lineWidth = 1;
   context.stroke();
 }
+function drawSatellite(context, x, y) {
+  context.save();
+  context.translate(x, y);
+  context.lineWidth = 1;
+  context.strokeStyle = "#0e1726";
+
+  context.fillStyle = "#4fa9d8";
+  context.fillRect(-14, -4, 8, 8);
+  context.fillRect(6, -4, 8, 8);
+  context.strokeRect(-14, -4, 8, 8);
+  context.strokeRect(6, -4, 8, 8);
+
+  context.fillStyle = "white";
+  context.fillRect(-6, -6, 12, 12);
+  context.strokeRect(-6, -6, 12, 12);
+  context.beginPath();
+  context.moveTo(0, -6); context.lineTo(0, -11);
+  context.moveTo(-2, -11); context.lineTo(2, -11);
+  context.stroke();
+  context.restore();
+}
 function drawHistory() {
   if (!packet || !bounds) return;
   const context = history.getContext("2d");
@@ -101,10 +122,7 @@ function frame(now) {
     }
     const [lon, lat] = OrbitAnimation.position(time, packet);
     const [x, y] = point(lon, lat);
-    context.beginPath(); context.moveTo(x, y - 7); context.lineTo(x + 7, y);
-    context.lineTo(x, y + 7); context.lineTo(x - 7, y); context.closePath();
-    context.fillStyle = "white"; context.fill(); context.strokeStyle = "#0e1726";
-    context.lineWidth = 1; context.stroke(); context.restore();
+    drawSatellite(context, x, y); context.restore();
     status.textContent = `${lat.toFixed(2)}° lat · ${lon.toFixed(2)}° lon` +
       (packet.running && now - received > 2000 ? " · Waiting for update" : "");
   }

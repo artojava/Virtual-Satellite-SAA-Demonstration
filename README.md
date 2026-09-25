@@ -81,7 +81,7 @@ Use the **SAA and polar enhancement areas** Show/Hide radio control below the ma
 to toggle the radiation shading and region labels without rerunning the simulation.
 
 Transparent cyan shows the ground track over a bundled Natural Earth world map;
-orange markers show upsets; the white diamond is the satellite. The shaded field
+orange markers show upsets; the satellite icon shows the current position. The shaded field
 is relative SAA and polar radiation intensity. Natural Earth land data is public domain (see
 `src/virtual_satellite_saa_demo/data/README.md` for attribution). Memory starts at
 zero: an upset flips a randomly selected bit, and repeated flips can restore it.
