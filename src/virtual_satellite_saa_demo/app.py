@@ -118,24 +118,18 @@ def live_dashboard():
         )
     memory = view.memory_at(index)
     mission_errors = simulation.error_history()
-    cols = st.columns(5)
-    cols[0].metric("Mission time", f"{track.time_s[index] / 3600:.2f} h")
-    cols[1].metric("Mission bit upsets", f"{simulation.total_upsets:,}")
-    cols[2].metric("Trail interval upsets", f"{radiation.counts[: index + 1].sum():,}")
-    cols[3].metric("Bits currently changed", f"{memory.sum():,}")
-    cols[4].metric("Current upset rate", f"{radiation.rate_per_second[index]:.3f} /s")
     with map_tab:
-        map_slot = st.container()
-        show_areas = (
-            st.radio(
-                "SAA and polar enhancement areas",
-                ["Show", "Hide"],
-                horizontal=True,
-                key="radiation_areas",
+        map_column, metrics_column = st.columns([3, 1])
+        with map_column:
+            show_areas = (
+                st.radio(
+                    "SAA and polar enhancement areas",
+                    ["Show", "Hide"],
+                    horizontal=True,
+                    key="radiation_areas",
+                )
+                == "Show"
             )
-            == "Show"
-        )
-        with map_slot:
             smooth_orbit_map(
                 track,
                 radiation,
@@ -151,20 +145,29 @@ def live_dashboard():
                 history_hours=duration,
                 mission_errors=mission_errors,
             )
-        st.caption(
-            f"Satellite: {track.latitude_deg[index]:.2f}° latitude, {track.longitude_deg[index]:.2f}° longitude. "
-            "Orange markers show all errors since mission start, including while browsing older positions. "
-            "Larger markers indicate more upsets. "
-            + (
-                "Shading shows SAA and polar radiation intensity, independent of memory sensitivity."
-                if show_areas
-                else "Radiation areas are hidden; simulated errors are unchanged."
+            st.caption(
+                f"Satellite: {track.latitude_deg[index]:.2f}° latitude, {track.longitude_deg[index]:.2f}° longitude. "
+                "Orange markers show all errors since mission start, including while browsing older positions. "
+                "Larger markers indicate more upsets. "
+                + (
+                    "Shading shows SAA and polar radiation intensity, independent of memory sensitivity."
+                    if show_areas
+                    else "Radiation areas are hidden; simulated errors are unchanged."
+                )
             )
-        )
-        st.caption(
-            f"Showing mission hours {track.time_s[0] / 3600:.2f}–{track.time_s[index] / 3600:.2f}. "
-            "Older orbit points roll off the map; error markers remain until a new simulation is started."
-        )
+            st.caption(
+                f"Showing mission hours {track.time_s[0] / 3600:.2f}–{track.time_s[index] / 3600:.2f}. "
+                "Older orbit points roll off the map; error markers remain until a new simulation starts."
+            )
+        with metrics_column:
+            st.metric("Mission time", f"{track.time_s[index] / 3600:.2f} h")
+            st.metric("Mission bit upsets", f"{simulation.total_upsets:,}")
+            st.metric("Trail interval upsets", f"{radiation.counts[: index + 1].sum():,}")
+            st.metric("Bits currently changed", f"{memory.sum():,}")
+            st.metric(
+                "Current upset rate",
+                f"{radiation.rate_per_second[index] * 3600:.2f} /hour",
+            )
     with memory_tab:
         left, right = st.columns([1, 1])
         with left:
