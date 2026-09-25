@@ -68,7 +68,13 @@ the server and browser session open. Closing/reloading the session or restarting
 the server can discard it. Delayed refreshes catch up in bounded batches without
 skipping radiation exposure; pause/resume does not count paused wall time.
 
-Use the **SAA and polar enhancement areas** Show/Hide radio control above the map
+The **Global map** tab contains the animated world map; **Onboard memory & errors**
+contains the memory bitmap, complete mission error table, and CSV download.
+The map preserves its aspect ratio and scales to the available page width and
+remaining window height, so resizing does not crop the world map. Shared live
+controls and mission metrics sit below the tab content.
+
+Use the **SAA and polar enhancement areas** Show/Hide radio control below the map
 to toggle the radiation shading and region labels without rerunning the simulation.
 
 Transparent cyan shows the ground track over a bundled Natural Earth world map;

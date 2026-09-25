@@ -17,7 +17,11 @@
     const smoothing = Math.max(0.4, Math.abs(correction) / packet.pace);
     return packet.time + elapsed * packet.pace + correction * Math.exp(-elapsed / smoothing);
   }
-  const api = {position, displayTime};
+  function fitMap(availableWidth, availableHeight) {
+    const width = Math.max(1, Math.min(availableWidth, availableHeight * 12 / 5.5));
+    return {width, height: width * 5.5 / 12};
+  }
+  const api = {position, displayTime, fitMap};
   if (typeof module !== "undefined") module.exports = api;
   else root.OrbitAnimation = api;
 })(globalThis);

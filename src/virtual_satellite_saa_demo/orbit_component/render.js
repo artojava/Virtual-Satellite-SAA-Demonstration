@@ -46,7 +46,24 @@ function drawHistory() {
   context.restore();
 }
 function resize() {
-  width = Math.max(1, map.clientWidth); height = width * 5.5 / 12;
+  // Fit both dimensions of the outer page, not the iframe's previous height.
+  // The component is served by Streamlit on the same origin as its parent.
+  const availableWidth = document.documentElement.clientWidth;
+  if (!availableWidth) return; // Hidden tabs must not erase the saved canvas size.
+  let availableHeight = availableWidth * 5.5 / 12;
+  try {
+    const viewport = window.parent.visualViewport;
+    const viewportHeight = viewport ? viewport.height : window.parent.innerHeight;
+    const top = window.frameElement.getBoundingClientRect().top - (viewport?.offsetTop || 0);
+    availableHeight = Math.max(1, viewportHeight - Math.max(0, top) - 16);
+  } catch (_) {
+    // Width-fit fallback for deployments using a cross-origin component host.
+  }
+  const fitted = OrbitAnimation.fitMap(availableWidth, availableHeight);
+  if (Math.abs(width - fitted.width) < 0.5 && Math.abs(height - fitted.height) < 0.5) return;
+  width = fitted.width; height = fitted.height;
+  map.style.width = `${width}px`;
+  map.style.height = `${height}px`;
   const ratio = window.devicePixelRatio || 1;
   for (const canvas of [history, motion]) {
     canvas.width = Math.round(width * ratio); canvas.height = Math.round(height * ratio);
@@ -93,7 +110,12 @@ function frame(now) {
   }
   requestAnimationFrame(frame);
 }
-new ResizeObserver(resize).observe(map);
+new ResizeObserver(resize).observe(document.documentElement);
+window.addEventListener("resize", resize);
+try {
+  window.parent.addEventListener("resize", resize);
+  window.parent.visualViewport?.addEventListener("resize", resize);
+} catch (_) { /* Cross-origin parents still receive iframe resize notifications. */ }
 send("streamlit:componentReady", {apiVersion: 1});
 resize();
 requestAnimationFrame(frame);

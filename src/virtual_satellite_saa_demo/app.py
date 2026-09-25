@@ -83,6 +83,7 @@ def live_dashboard():
         return
     simulation = st.session_state["simulation"]
     config = simulation.config
+    map_tab, memory_tab = st.tabs(["Global map", "Onboard memory & errors"])
     controls = st.columns([1, 3])
     running = controls[0].toggle("Running", key="simulation_running")
     pace = controls[1].select_slider(
@@ -123,69 +124,73 @@ def live_dashboard():
     cols[2].metric("Trail interval upsets", f"{radiation.counts[: index + 1].sum():,}")
     cols[3].metric("Bits currently changed", f"{memory.sum():,}")
     cols[4].metric("Current upset rate", f"{radiation.rate_per_second[index]:.3f} /s")
-    show_areas = (
-        st.radio(
-            "SAA and polar enhancement areas",
-            ["Show", "Hide"],
-            horizontal=True,
-            key="radiation_areas",
+    with map_tab:
+        map_slot = st.container()
+        show_areas = (
+            st.radio(
+                "SAA and polar enhancement areas",
+                ["Show", "Hide"],
+                horizontal=True,
+                key="radiation_areas",
+            )
+            == "Show"
         )
-        == "Show"
-    )
-    smooth_orbit_map(
-        track,
-        radiation,
-        index,
-        config,
-        show_areas=show_areas,
-        mission_id=str(id(simulation)),
-        virtual_time=target
-        if running and not catching_up
-        else float(track.time_s[index]),
-        running=running and not catching_up,
-        pace=pace,
-        history_hours=duration,
-        mission_errors=mission_errors,
-    )
-    st.caption(
-        f"Satellite: {track.latitude_deg[index]:.2f}° latitude, {track.longitude_deg[index]:.2f}° longitude. "
-        "Orange markers show all errors since mission start, including while browsing older positions. "
-        "Larger markers indicate more upsets. "
-        + (
-            "Shading shows SAA and polar radiation intensity, independent of memory sensitivity."
-            if show_areas
-            else "Radiation areas are hidden; simulated errors are unchanged."
-        )
-    )
-    st.caption(
-        f"Showing mission hours {track.time_s[0] / 3600:.2f}–{track.time_s[index] / 3600:.2f}. "
-        "Older orbit points roll off the map; error markers remain until a new simulation is started."
-    )
-    left, right = st.columns([1, 1])
-    with left:
-        st.subheader("Onboard memory")
-        st.pyplot(memory_figure(memory), width="stretch")
+        with map_slot:
+            smooth_orbit_map(
+                track,
+                radiation,
+                index,
+                config,
+                show_areas=show_areas,
+                mission_id=str(id(simulation)),
+                virtual_time=target
+                if running and not catching_up
+                else float(track.time_s[index]),
+                running=running and not catching_up,
+                pace=pace,
+                history_hours=duration,
+                mission_errors=mission_errors,
+            )
         st.caption(
-            "Memory starts at zero. Each upset flips one random bit; a second flip restores it. "
-            "Memory and mission totals include events older than the visible history."
+            f"Satellite: {track.latitude_deg[index]:.2f}° latitude, {track.longitude_deg[index]:.2f}° longitude. "
+            "Orange markers show all errors since mission start, including while browsing older positions. "
+            "Larger markers indicate more upsets. "
+            + (
+                "Shading shows SAA and polar radiation intensity, independent of memory sensitivity."
+                if show_areas
+                else "Radiation areas are hidden; simulated errors are unchanged."
+            )
         )
-    with right:
-        st.subheader("Mission error locations")
-        frame = pd.DataFrame({
-            "Time (min)": mission_errors[:, 0] / 60,
-            "Latitude (°)": mission_errors[:, 2],
-            "Longitude (°)": mission_errors[:, 1],
-            "Upsets": mission_errors[:, 3].astype(np.int64),
-        })
-        st.dataframe(frame.round(2), hide_index=True, height=240, width="stretch")
-        if frame.empty:
-            st.caption("No upsets recorded in this mission yet.")
-        st.download_button(
-            "Download error locations (CSV)",
-            frame.to_csv(index=False),
-            file_name="satellite-errors.csv",
-            mime="text/csv",
+        st.caption(
+            f"Showing mission hours {track.time_s[0] / 3600:.2f}–{track.time_s[index] / 3600:.2f}. "
+            "Older orbit points roll off the map; error markers remain until a new simulation is started."
         )
+    with memory_tab:
+        left, right = st.columns([1, 1])
+        with left:
+            st.subheader("Onboard memory")
+            st.pyplot(memory_figure(memory), width="stretch")
+            st.caption(
+                "Memory starts at zero. Each upset flips one random bit; a second flip restores it. "
+                "Memory and mission totals include events older than the visible history."
+            )
+        with right:
+            st.subheader("Mission error locations")
+            frame = pd.DataFrame({
+                "Time (min)": mission_errors[:, 0] / 60,
+                "Latitude (°)": mission_errors[:, 2],
+                "Longitude (°)": mission_errors[:, 1],
+                "Upsets": mission_errors[:, 3].astype(np.int64),
+            })
+            st.dataframe(frame.round(2), hide_index=True, height=240, width="stretch")
+            if frame.empty:
+                st.caption("No upsets recorded in this mission yet.")
+            st.download_button(
+                "Download error locations (CSV)",
+                frame.to_csv(index=False),
+                file_name="satellite-errors.csv",
+                mime="text/csv",
+            )
 
 
 live_dashboard()
