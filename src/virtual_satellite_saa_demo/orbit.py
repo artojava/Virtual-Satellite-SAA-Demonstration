@@ -24,7 +24,7 @@ class OrbitConfig:
             "altitude_km": (160, 2000),
             "inclination_deg": (0, 180),
             "speed_multiplier": (0.25, 4),
-            "duration_hours": (0.1, 24),
+            "duration_hours": (0.1, 744),
             "step_seconds": (1, 120),
             "start_longitude_deg": (-180, 180),
         }

@@ -30,7 +30,7 @@ def test_equatorial_orbit_and_speed():
 
 
 @pytest.mark.parametrize("kwargs", [{"altitude_km": -1}, {"speed_multiplier": 0},
-                                    {"step_seconds": 0}, {"duration_hours": 25},
+                                    {"step_seconds": 0}, {"duration_hours": 745},
                                     {"inclination_deg": float("nan")}])
 def test_invalid_configuration(kwargs):
     with pytest.raises(ValueError):

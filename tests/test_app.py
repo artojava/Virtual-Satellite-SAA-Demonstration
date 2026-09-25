@@ -13,6 +13,9 @@ def button(app, label):
 def test_live_run_pause_history_and_restart():
     path = Path(virtual_satellite_saa_demo.__file__).with_name("app.py")
     app = AppTest.from_file(str(path)).run(timeout=30)
+    next(
+        s for s in app.slider if s.label == "Mission error history (hours)"
+    ).set_value(0.5).run(timeout=30)
     button(app, "Start simulation").click().run(timeout=30)
     assert not app.exception
     simulation = app.session_state["simulation"]
@@ -21,6 +24,7 @@ def test_live_run_pause_history_and_restart():
     assert len(app.tabs[1].dataframe) == 1
     assert app.tabs[1].subheader[0].value == "Onboard memory"
     assert simulation.total_upsets > 0
+    assert simulation.time_s >= 0.5 * 3600
     before = simulation.time_s
     app.session_state["clock"].last_wall_seconds -= 2
     app.run(timeout=30)
@@ -30,7 +34,7 @@ def test_live_run_pause_history_and_restart():
     app.toggle[0].set_value(False).run(timeout=30)
     stopped_time = simulation.time_s
     stopped_memory = simulation.memory.copy()
-    next(s for s in app.slider if s.label == "Visible history (hours)").set_value(0.5).run(timeout=30)
+    next(s for s in app.slider if s.label == "Flight path history (hours)").set_value(0.5).run(timeout=30)
     app.radio[0].set_value("Hide").run(timeout=30)
     assert not app.exception
     assert simulation.time_s == stopped_time

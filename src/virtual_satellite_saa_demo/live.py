@@ -1,7 +1,7 @@
 """Incremental simulation with rolling orbit samples and complete mission errors."""
 
-from collections import deque
 from array import array
+from collections import deque
 from dataclasses import dataclass
 
 import numpy as np
@@ -14,7 +14,9 @@ from virtual_satellite_saa_demo.radiation import (
     upset_rates,
 )
 
-RETENTION_SECONDS = 24 * 3600
+FLIGHT_PATH_RETENTION_SECONDS = 24 * 3600
+MISSION_ERROR_RETENTION_SECONDS = 744 * 3600
+RETENTION_SECONDS = FLIGHT_PATH_RETENTION_SECONDS
 MAX_BATCH_SAMPLES = 4096
 
 
@@ -46,7 +48,7 @@ class HistoryView:
 
 
 class LiveSimulation:
-    """Retain all error locations, with 24 hours of detailed orbit/memory samples."""
+    """Retain a 24-hour flight path and one month of mission errors."""
 
     def __init__(self, config: OrbitConfig, sensitivity: float = 1.0, seed: int = 42):
         self.config = config
@@ -108,6 +110,14 @@ class LiveSimulation:
         self._error_history.extend(np.column_stack((
             times[events], track.longitude_deg[events], track.latitude_deg[events], counts[events]
         )).ravel())
+        error_times = np.array(self._error_history[::4])
+        first_retained = int(np.searchsorted(
+            error_times,
+            end * self.config.step_seconds - MISSION_ERROR_RETENTION_SECONDS,
+            side="left",
+        ))
+        if first_retained:
+            del self._error_history[: first_retained * 4]
         addresses = self._memory_rng.integers(0, MEMORY_BITS, size=int(counts.sum()))
         self.memory ^= flip_mask(addresses)
         self.total_upsets += len(addresses)
@@ -123,7 +133,7 @@ class LiveSimulation:
                 )
             )
         self.sample_number = end
-        while self.samples[0].time < self.time_s - RETENTION_SECONDS:
+        while self.samples[0].time < self.time_s - FLIGHT_PATH_RETENTION_SECONDS:
             self.samples.popleft()
 
     def error_history(self) -> np.ndarray:

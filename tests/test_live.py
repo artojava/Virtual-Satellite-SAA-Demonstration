@@ -1,7 +1,13 @@
 import numpy as np
 import pytest
 
-from virtual_satellite_saa_demo.live import LiveSimulation, SimulationClock, RETENTION_SECONDS
+from virtual_satellite_saa_demo.live import (
+    FLIGHT_PATH_RETENTION_SECONDS,
+    MISSION_ERROR_RETENTION_SECONDS,
+    LiveSimulation,
+    SimulationClock,
+    RETENTION_SECONDS,
+)
 from virtual_satellite_saa_demo.orbit import OrbitConfig, simulate_orbit
 from virtual_satellite_saa_demo.radiation import upset_rates
 
@@ -99,3 +105,14 @@ def test_mission_errors_survive_rollover_and_only_new_mission_starts_empty():
     replacement = LiveSimulation(config)
     assert replacement.error_history().shape == (0, 4)
     assert replacement.total_upsets == 0
+
+
+def test_flight_path_and_mission_error_histories_have_separate_horizons():
+    config = OrbitConfig(step_seconds=60)
+    simulation = LiveSimulation(config)
+    advance(simulation, MISSION_ERROR_RETENTION_SECONDS + RETENTION_SECONDS)
+
+    assert simulation.samples[0].time == simulation.time_s - FLIGHT_PATH_RETENTION_SECONDS
+    errors = simulation.error_history()
+    assert errors[0, 0] >= simulation.time_s - MISSION_ERROR_RETENTION_SECONDS
+    assert errors[-1, 0] <= simulation.time_s

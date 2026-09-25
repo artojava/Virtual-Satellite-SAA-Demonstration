@@ -21,9 +21,15 @@ st.write(
 
 with st.sidebar:
     st.header("Mission controls")
-    duration = st.slider("Visible history (hours)", 0.5, 24.0, 6.0, 0.5)
+    duration = st.slider("Flight path history (hours)", 0.5, 24.0, 6.0, 0.5)
     st.caption(
-        "Adjust the orbit trail during a run. Error markers remain from mission start."
+        "Adjust the orbital track window. Mission errors are retained separately for one month."
+    )
+    error_history_hours = st.slider(
+        "Mission error history (hours)", 0.5, 744.0, 744.0, 0.5
+    )
+    st.caption(
+        "Pre-generate mission errors from this far back when starting a simulation."
     )
     with st.form("mission"):
         altitude = st.slider("Altitude (km)", 160, 2000, 550, 10)
@@ -54,15 +60,17 @@ with st.sidebar:
             "Start simulation", type="primary", use_container_width=True
         )
     st.caption(
-        "Start simulation begins a new mission with the selected history already generated. "
+        "Start simulation begins a new mission with the selected flight path and error histories already generated. "
         "Orbit and memory changes apply to a new run. The same settings and seed reproduce events at the same virtual times."
     )
 
 if run:
-    config = OrbitConfig(altitude, inclination, speed, duration, step, start_lon)
+    config = OrbitConfig(
+        altitude, inclination, speed, error_history_hours, step, start_lon
+    )
     with st.spinner("Generating the initial virtual history…"):
         simulation = LiveSimulation(config, sensitivity, int(seed))
-        target = duration * 3600
+        target = error_history_hours * 3600
         while simulation.time_s + config.step_seconds <= target:
             simulation.advance_to(target)
     st.session_state["simulation"] = simulation
@@ -104,7 +112,7 @@ def live_dashboard():
     track, radiation = view.track, view.radiation
     st.caption(
         f"Active run · {config.altitude_km:g} km · {config.speed_km_s:.2f} km/s · "
-        f"{config.period_seconds / 60:.1f} min/orbit · last {duration:g} hours · "
+        f"{config.period_seconds / 60:.1f} min/orbit · flight path: last {duration:g} hours · "
         f"memory sensitivity {radiation.memory_sensitivity:g}×"
     )
     index = len(track.time_s) - 1
@@ -147,7 +155,7 @@ def live_dashboard():
             )
             st.caption(
                 f"Satellite: {track.latitude_deg[index]:.2f}° latitude, {track.longitude_deg[index]:.2f}° longitude. "
-                "Orange markers show all errors since mission start, including while browsing older positions. "
+                "Orange markers show retained mission errors, including while browsing older positions. "
                 "Larger markers indicate more upsets. "
                 + (
                     "Shading shows SAA and polar radiation intensity, independent of memory sensitivity."
@@ -156,14 +164,12 @@ def live_dashboard():
                 )
             )
             st.caption(
-                f"Showing mission hours {track.time_s[0] / 3600:.2f}–{track.time_s[index] / 3600:.2f}. "
-                "Older orbit points roll off the map; error markers remain until a new simulation starts."
+                f"Showing flight path hours {track.time_s[0] / 3600:.2f}–{track.time_s[index] / 3600:.2f}. "
+                "Older orbit points roll off the map; mission errors remain for up to one month."
             )
         with metrics_column:
             st.metric("Mission time", f"{track.time_s[index] / 3600:.2f} h")
             st.metric("Mission bit upsets", f"{simulation.total_upsets:,}")
-            st.metric("Trail interval upsets", f"{radiation.counts[: index + 1].sum():,}")
-            st.metric("Bits currently changed", f"{memory.sum():,}")
             st.metric(
                 "Current upset rate",
                 f"{radiation.rate_per_second[index] * 3600:.2f} /hour",
@@ -208,9 +214,9 @@ point directly beneath the satellite, shown in longitude and latitude.
 The simulation starts with the selected virtual history and then advances
 continuously while this browser session is active. **Virtual seconds per real
 second** controls the pace of the demonstration; the orbital speed multiplier
-changes the orbit itself. **Visible history** changes only the orbit trail window.
-All recorded error locations stay on the map and in the table/CSV until a new
-simulation starts, even when browsing earlier satellite positions.
+changes the orbit itself. **Flight path history** changes only the orbit trail window.
+Mission error locations are retained separately for up to one month and remain on the map and in the
+table/CSV when browsing earlier satellite positions.
 Pause **Running** to browse the retained orbit history, then resume
 to continue from the same state. Closing/reloading the session or restarting the
 server can discard the run; this demonstration does not save missions to disk.

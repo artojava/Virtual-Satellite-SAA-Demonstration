@@ -29,16 +29,19 @@ external services are required during a run.
 ## Using the application
 
 1. Set altitude, orbital speed multiplier, inclination, sample interval, memory
-   sensitivity, and **Visible history (hours)**.
+  sensitivity, **Flight path history (hours)**, and **Mission error history
+  (hours)**. The latter can be set to 744 hours to begin with one month of
+  simulated error history.
 2. Select **Start simulation**. The app generates the selected initial history,
    then keeps advancing the satellite and drawing fresh random errors.
 3. Set **Virtual seconds per real second** to control the demonstration pace
    (default 300: five virtual minutes per real second). This is separate from
    orbital speed: time acceleration speeds up both motion and radiation exposure.
-4. Change **Visible history** at any time to shorten or extend the visible trail
-   within the retained data. Switch **Running** off to pause and use the sample
-   slider to inspect historical position, errors, and memory. Switch it on to resume.
-5. Inspect all mission error locations or download their CSV. Each row groups
+4. Change **Flight path history** at any time to shorten or extend the visible trail
+  within the retained data. This control is limited to 24 hours. Switch **Running**
+  off to pause and use the sample slider to inspect historical position, errors, and
+  memory. Switch it on to resume.
+5. Inspect retained mission error locations or download their CSV. Each row groups
    upsets at one interval endpoint; times are minutes since virtual mission start.
 
 Orbit, sensitivity, sample interval, and seed changes apply when **Start simulation**
@@ -55,8 +58,8 @@ after two seconds and displays “Waiting for update”. Leave the app running
 to accumulate virtual history: the orbit continues past the selected history
 length, and old orbit points roll off. At most 24 hours of detailed orbit/memory
 samples are retained; expanding the window reveals whatever track is available.
-**All error locations remain visible from mission start**, including errors older
-than 24 hours. The table and CSV also include the complete mission error history.
+**Mission error locations remain visible for up to one month**, including errors
+older than the 24-hour flight path. The table and CSV use the same one-month archive.
 Changing the trail window, hiding radiation areas, pausing, or browsing earlier
 positions never clears error markers. Starting a new simulation resets this archive.
 Mission totals include all recorded upsets, while **Trail interval upsets** counts
@@ -69,7 +72,7 @@ the server can discard it. Delayed refreshes catch up in bounded batches without
 skipping radiation exposure; pause/resume does not count paused wall time.
 
 The **Global map** tab contains the animated world map; **Onboard memory & errors**
-contains the memory bitmap, complete mission error table, and CSV download.
+contains the memory bitmap, retained mission error table, and CSV download.
 The map preserves its aspect ratio and scales to the available page width and
 remaining window height, so resizing does not crop the world map. Shared live
 controls and mission metrics sit below the tab content.
@@ -133,9 +136,9 @@ particles. The numerical rates and latitude boundaries above are teaching choice
 The model uses vectorized NumPy calculations. Live runs have no fixed duration;
 detailed orbit/memory history is capped at 24 hours with a minimum one-second step
 (86,401 retained samples). Error intervals are stored separately as compact
-time/longitude/latitude/count rows for the entire mission; this archive and its
-display grow with mission duration. Individual bit addresses older than 24 hours
-are not retained, but error locations and counts are preserved.
+time/longitude/latitude/count rows for up to one month (744 hours). Individual bit
+addresses older than 24 hours are not retained, and mission errors older than one
+month roll off the archive.
 Each update processes at most 4,096 new samples so long
 catch-up periods can be split across refreshes. Smaller intervals improve spatial
 resolution; the default ten seconds is a useful balance for interactive use.
