@@ -80,7 +80,7 @@ def ground_track_figure(
             colors=["#fcbe66"],
             linewidths=0.8,
         )
-        ax.clabel(contour, fmt={0.2: "SAA teaching region"}, fontsize=9)
+        ax.clabel(contour, fmt={0.2: "South Atlantic Anomaly"}, fontsize=9)
         for latitude in (-76, 76):
             ax.text(
                 -172,

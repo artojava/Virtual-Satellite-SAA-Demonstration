@@ -12,9 +12,9 @@ from virtual_satellite_saa_demo.orbit import OrbitConfig
 from virtual_satellite_saa_demo.plotting import memory_figure
 
 st.set_page_config(
-    page_title="Virtual Satellite · SAA explorer", page_icon="🛰️", layout="wide"
+    page_title="Virtual Satellite · SEE Demonstration", page_icon="🛰️", layout="wide"
 )
-st.title("Virtual Satellite · SAA explorer")
+st.title("Virtual Satellite · SEE Demonstration")
 st.write(
     "Follow a low Earth orbit and discover where radiation flips bits in satellite memory."
 )
