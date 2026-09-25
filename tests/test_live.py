@@ -4,9 +4,9 @@ import pytest
 from virtual_satellite_saa_demo.live import (
     FLIGHT_PATH_RETENTION_SECONDS,
     MISSION_ERROR_RETENTION_SECONDS,
+    RETENTION_SECONDS,
     LiveSimulation,
     SimulationClock,
-    RETENTION_SECONDS,
 )
 from virtual_satellite_saa_demo.orbit import OrbitConfig, simulate_orbit
 from virtual_satellite_saa_demo.radiation import upset_rates
@@ -26,7 +26,9 @@ def test_live_matches_orbit_and_rate_rules():
     np.testing.assert_array_equal(view.track.time_s, expected.time_s)
     np.testing.assert_allclose(view.track.latitude_deg, expected.latitude_deg)
     np.testing.assert_allclose(view.track.longitude_deg, expected.longitude_deg)
-    np.testing.assert_allclose(view.radiation.rate_per_second, upset_rates(expected, 550, 0.03))
+    np.testing.assert_allclose(
+        view.radiation.rate_per_second, upset_rates(expected, 550, 0.03)
+    )
     assert view.radiation.counts[0] == 0
 
 
@@ -54,7 +56,9 @@ def test_rollover_preserves_memory_and_cumulative_counts():
     short = simulation.view(0.5)
     assert short.track.time_s[0] == simulation.time_s - 1800
     for view in (full, short):
-        np.testing.assert_array_equal(view.memory_at(len(view.track.time_s) - 1), simulation.memory)
+        np.testing.assert_array_equal(
+            view.memory_at(len(view.track.time_s) - 1), simulation.memory
+        )
         assert view.total_at(len(view.track.time_s) - 1) == simulation.total_upsets
         assert view.total_before > 0
     offset = np.searchsorted(full.track.time_s, short.track.time_s[0])
@@ -93,7 +97,7 @@ def test_mission_errors_survive_rollover_and_only_new_mission_starts_empty():
     assert len(first_day) > 0
     advance(simulation, 3 * RETENTION_SECONDS)
     entire_mission = simulation.error_history()
-    np.testing.assert_array_equal(entire_mission[:len(first_day)], first_day)
+    np.testing.assert_array_equal(entire_mission[: len(first_day)], first_day)
     assert entire_mission[0, 0] < simulation.samples[0].time
     assert entire_mission[:, 3].sum() == simulation.total_upsets
     simulation.view(0.5)
@@ -112,7 +116,9 @@ def test_flight_path_and_mission_error_histories_have_separate_horizons():
     simulation = LiveSimulation(config)
     advance(simulation, MISSION_ERROR_RETENTION_SECONDS + RETENTION_SECONDS)
 
-    assert simulation.samples[0].time == simulation.time_s - FLIGHT_PATH_RETENTION_SECONDS
+    assert (
+        simulation.samples[0].time == simulation.time_s - FLIGHT_PATH_RETENTION_SECONDS
+    )
     errors = simulation.error_history()
     assert errors[0, 0] >= simulation.time_s - MISSION_ERROR_RETENTION_SECONDS
     assert errors[-1, 0] <= simulation.time_s

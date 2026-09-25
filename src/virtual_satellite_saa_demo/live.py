@@ -107,15 +107,22 @@ class LiveSimulation:
             (previous + rates) * 0.5 * self.config.step_seconds
         )
         events = counts > 0
-        self._error_history.extend(np.column_stack((
-            times[events], track.longitude_deg[events], track.latitude_deg[events], counts[events]
-        )).ravel())
+        self._error_history.extend(
+            np.column_stack((
+                times[events],
+                track.longitude_deg[events],
+                track.latitude_deg[events],
+                counts[events],
+            )).ravel()
+        )
         error_times = np.array(self._error_history[::4])
-        first_retained = int(np.searchsorted(
-            error_times,
-            end * self.config.step_seconds - MISSION_ERROR_RETENTION_SECONDS,
-            side="left",
-        ))
+        first_retained = int(
+            np.searchsorted(
+                error_times,
+                end * self.config.step_seconds - MISSION_ERROR_RETENTION_SECONDS,
+                side="left",
+            )
+        )
         if first_retained:
             del self._error_history[: first_retained * 4]
         addresses = self._memory_rng.integers(0, MEMORY_BITS, size=int(counts.sum()))
