@@ -1,12 +1,15 @@
 """Streamlit presentation layer for the satellite teaching demo."""
 
+import time
+
 import numpy as np
 import pandas as pd
 import streamlit as st
 
-from virtual_satellite_saa_demo.orbit import OrbitConfig, simulate_orbit
-from virtual_satellite_saa_demo.plotting import ground_track_figure, memory_figure
-from virtual_satellite_saa_demo.radiation import generate_errors
+from virtual_satellite_saa_demo.animation import smooth_orbit_map
+from virtual_satellite_saa_demo.live import LiveSimulation, SimulationClock
+from virtual_satellite_saa_demo.orbit import OrbitConfig
+from virtual_satellite_saa_demo.plotting import memory_figure
 
 st.set_page_config(page_title="Satellite · SAA explorer", page_icon="🛰️", layout="wide")
 st.title("Satellite · SAA explorer")
@@ -16,6 +19,8 @@ st.write(
 
 with st.sidebar:
     st.header("Mission controls")
+    duration = st.slider("Visible history (hours)", 0.5, 24.0, 6.0, 0.5)
+    st.caption("Adjust the visible trail during a run. Up to 24 hours are retained.")
     with st.form("mission"):
         altitude = st.slider("Altitude (km)", 160, 2000, 550, 10)
         speed = st.slider("Orbital speed multiplier", 0.25, 4.0, 1.0, 0.25)
@@ -34,7 +39,6 @@ with st.sidebar:
             "Lower = fewer bit flips. Try 0.03× over 24 hours at 51.6° to highlight the SAA. "
             "Rare errors elsewhere remain possible."
         )
-        duration = st.slider("Duration (hours)", 0.5, 24.0, 6.0, 0.5)
         step = st.select_slider(
             "Sample interval (seconds)", options=[1, 5, 10, 30, 60, 120], value=10
         )
@@ -46,44 +50,74 @@ with st.sidebar:
             "Start simulation", type="primary", use_container_width=True
         )
     st.caption(
-        "Change parameters, then start a new run. The same settings and seed reproduce the same errors."
+        "Start simulation begins a new mission with the selected history already generated. "
+        "Orbit and memory changes apply to a new run. The same settings and seed reproduce events at the same virtual times."
     )
 
 if run:
     config = OrbitConfig(altitude, inclination, speed, duration, step, start_lon)
-    with st.spinner("Simulating the orbit and memory upsets…"):
-        track = simulate_orbit(config)
-        radiation = generate_errors(
-            track, altitude, int(seed), memory_sensitivity=sensitivity
-        )
-    st.session_state["result"] = (config, track, radiation)
+    with st.spinner("Generating the initial virtual history…"):
+        simulation = LiveSimulation(config, sensitivity, int(seed))
+        target = duration * 3600
+        while simulation.time_s + config.step_seconds <= target:
+            simulation.advance_to(target)
+    st.session_state["simulation"] = simulation
+    st.session_state["simulation_running"] = True
+    st.session_state["clock"] = SimulationClock(
+        simulation.time_s, time.monotonic(), st.session_state.get("pace", 300)
+    )
     st.session_state.pop("sample_index", None)
 
-if "result" not in st.session_state:
-    st.info(
-        "Choose mission settings and select Start simulation to trace the orbit and generate memory errors."
+
+@st.fragment(run_every=1.0)
+def live_dashboard():
+    """Refresh only the live view, without resubmitting mission settings."""
+    if "simulation" not in st.session_state:
+        st.info(
+            "Choose mission settings and select Start simulation to begin a continuous run."
+        )
+        return
+    simulation = st.session_state["simulation"]
+    config = simulation.config
+    controls = st.columns([1, 3])
+    running = controls[0].toggle("Running", key="simulation_running")
+    pace = controls[1].select_slider(
+        "Virtual seconds per real second",
+        options=[1, 60, 300, 600, 1800, 3600],
+        value=300,
+        key="pace",
     )
-else:
-    config, track, radiation = st.session_state["result"]
+    clock = st.session_state["clock"]
+    target = clock.update(time.monotonic(), running=running, pace=pace)
+    simulation.advance_to(target)
+    catching_up = target - simulation.time_s >= config.step_seconds
+    if catching_up:
+        st.info(
+            "Catching up virtual history in batches; no exposure intervals are skipped."
+        )
+    view = simulation.view(duration)
+    track, radiation = view.track, view.radiation
     st.caption(
         f"Active run · {config.altitude_km:g} km · {config.speed_km_s:.2f} km/s · "
-        f"{config.period_seconds / 60:.1f} min/orbit · {config.duration_hours:g} hours · "
+        f"{config.period_seconds / 60:.1f} min/orbit · last {duration:g} hours · "
         f"memory sensitivity {radiation.memory_sensitivity:g}×"
     )
-    index = st.slider(
-        "Explore the run · sample",
-        0,
-        len(track.time_s) - 1,
-        len(track.time_s) - 1,
-        key="sample_index",
-    )
-    memory = radiation.memory_at(index)
-    total = int(radiation.counts[: index + 1].sum())
-    cols = st.columns(4)
-    cols[0].metric("Elapsed time", f"{track.time_s[index] / 3600:.2f} h")
-    cols[1].metric("Bit upsets", f"{total:,}")
-    cols[2].metric("Bits currently changed", f"{memory.sum():,}")
-    cols[3].metric("Current upset rate", f"{radiation.rate_per_second[index]:.3f} /s")
+    index = len(track.time_s) - 1
+    if not running and not catching_up and index > 0:
+        index = st.slider(
+            "Explore retained history · sample", 0, index, index, key="sample_index"
+        )
+    else:
+        st.caption(
+            "Live position follows virtual time. Pause Running to inspect retained history."
+        )
+    memory = view.memory_at(index)
+    cols = st.columns(5)
+    cols[0].metric("Mission time", f"{track.time_s[index] / 3600:.2f} h")
+    cols[1].metric("Mission bit upsets", f"{view.total_at(index):,}")
+    cols[2].metric("Visible bit upsets", f"{radiation.counts[: index + 1].sum():,}")
+    cols[3].metric("Bits currently changed", f"{memory.sum():,}")
+    cols[4].metric("Current upset rate", f"{radiation.rate_per_second[index]:.3f} /s")
     show_areas = (
         st.radio(
             "SAA and polar enhancement areas",
@@ -93,9 +127,19 @@ else:
         )
         == "Show"
     )
-    st.pyplot(
-        ground_track_figure(track, radiation, index, show_radiation_areas=show_areas),
-        width="stretch",
+    smooth_orbit_map(
+        track,
+        radiation,
+        index,
+        config,
+        show_areas=show_areas,
+        mission_id=str(id(simulation)),
+        virtual_time=target
+        if running and not catching_up
+        else float(track.time_s[index]),
+        running=running and not catching_up,
+        pace=pace,
+        history_hours=duration,
     )
     st.caption(
         f"Satellite: {track.latitude_deg[index]:.2f}° latitude, {track.longitude_deg[index]:.2f}° longitude. "
@@ -106,16 +150,20 @@ else:
             else "Radiation areas are hidden; simulated errors are unchanged."
         )
     )
+    st.caption(
+        f"Showing mission hours {track.time_s[0] / 3600:.2f}–{track.time_s[index] / 3600:.2f}. "
+        "The satellite continues beyond the history window; old points roll off the map."
+    )
     left, right = st.columns([1, 1])
     with left:
         st.subheader("Onboard memory")
         st.pyplot(memory_figure(memory), width="stretch")
         st.caption(
             "Memory starts at zero. Each upset flips one random bit; a second flip restores it. "
-            "Total upsets can exceed the number of changed bits."
+            "Memory and mission totals include events older than the visible history."
         )
     with right:
-        st.subheader("Error locations")
+        st.subheader("Visible error locations")
         events = np.flatnonzero(radiation.counts[: index + 1])
         frame = pd.DataFrame({
             "Time (min)": track.time_s[events] / 60,
@@ -133,12 +181,23 @@ else:
             mime="text/csv",
         )
 
+
+live_dashboard()
+
 with st.expander(
-    "How this demonstration works", expanded="result" not in st.session_state
+    "How this demonstration works", expanded="simulation" not in st.session_state
 ):
     st.markdown("""
 The orbit is circular above a spherical, rotating Earth. Its ground track is the
 point directly beneath the satellite, shown in longitude and latitude.
+
+The simulation starts with the selected virtual history and then advances
+continuously while this browser session is active. **Virtual seconds per real
+second** controls the pace of the demonstration; the orbital speed multiplier
+changes the orbit itself. **Visible history** changes the displayed time window
+without restarting. Pause **Running** to browse the retained history, then resume
+to continue from the same state. Closing/reloading the session or restarting the
+server can discard the run; this demonstration does not save missions to disk.
 
 The **South Atlantic Anomaly** is represented here by a broad Gaussian centered
 at **25° S, 45° W**. At 550 km and 1× sensitivity, the whole-memory upset rate

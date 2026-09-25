@@ -28,12 +28,41 @@ external services are required during a run.
 
 ## Using the application
 
-1. Set altitude, speed multiplier, inclination, duration, sample interval, and memory sensitivity.
-2. Select **Start simulation**. Changes to controls apply only to a new run.
-3. Move the sample slider to explore elapsed time, position, cumulative upsets,
-   and memory state. The initial result shows the completed run.
-4. Inspect the error locations table or download its CSV. Each row groups all
-   upsets from one sampling interval at that interval's endpoint.
+1. Set altitude, orbital speed multiplier, inclination, sample interval, memory
+   sensitivity, and **Visible history (hours)**.
+2. Select **Start simulation**. The app generates the selected initial history,
+   then keeps advancing the satellite and drawing fresh random errors.
+3. Set **Virtual seconds per real second** to control the demonstration pace
+   (default 300: five virtual minutes per real second). This is separate from
+   orbital speed: time acceleration speeds up both motion and radiation exposure.
+4. Change **Visible history** at any time to shorten or extend the visible trail
+   within the retained data. Switch **Running** off to pause and use the sample
+   slider to inspect historical position, errors, and memory. Switch it on to resume.
+5. Inspect the visible error locations or download their CSV. Each row groups
+   upsets at one interval endpoint; times are minutes since virtual mission start.
+
+Orbit, sensitivity, sample interval, and seed changes apply when **Start simulation**
+is pressed again, resetting mission time, random generators, and memory. Display
+changes do not reset a mission or regenerate past errors.
+
+The satellite marker and leading trail animate at the browser's frame rate using
+the same orbital equations as Python, including Earth rotation and date-line
+wrapping. Recorded history, errors, and counters update approximately once per
+second. The map background stays fixed between updates. Animation does not change
+the sample interval or generate extra radiation events. Pause and history browsing
+freeze the marker at the selected sample. If server updates stop, the marker stops
+after two seconds and displays “Waiting for update”. Leave the app running
+to accumulate virtual history: the orbit continues past the selected history
+length, and old points roll off. At most 24 hours of detailed history are retained;
+expanding the window reveals whatever history is available. Mission totals and
+memory state retain the effects of older events even after those points expire.
+The visible error count covers only the displayed track, while the mission count
+includes all upsets up to the viewed time.
+
+The simulation is session-local, not a background service or disk archive. Keep
+the server and browser session open. Closing/reloading the session or restarting
+the server can discard it. Delayed refreshes catch up in bounded batches without
+skipping radiation exposure; pause/resume does not count paused wall time.
 
 Use the **SAA and polar enhancement areas** Show/Hide radio control above the map
 to toggle the radiation shading and region labels without rerunning the simulation.
@@ -44,8 +73,12 @@ is relative SAA and polar radiation intensity. Natural Earth land data is public
 `src/virtual_satellite_saa_demo/data/README.md` for attribution). Memory starts at
 zero: an upset flips a randomly selected bit, and repeated flips can restore it.
 Consequently, cumulative upsets and currently changed bits are different counts.
-Identical parameters and random seeds reproduce results. Changing the sample
-interval changes random draws, so it does not preserve individual events.
+Identical parameters and random seeds reproduce events at the same virtual
+mission times regardless of refresh frequency or time acceleration. Independent
+random streams for counts and bit addresses prevent refresh batching from changing
+the outcome. Changing the sample interval changes random draws, so it does not
+preserve individual events. Live runs use different random streams from the
+original finite-run implementation, but use the same probability and memory rules.
 
 ### Demonstrating memory sensitivity and polar exposure
 
@@ -87,8 +120,10 @@ For physical context, the [BGS State of the Geomagnetic Field report](https://ww
 discusses satellite radiation effects in the SAA and polar exposure to energetic
 particles. The numerical rates and latitude boundaries above are teaching choices.
 
-The model uses vectorized NumPy calculations and caps runs at 24 hours with a
-minimum one-second step (86,401 samples). Smaller intervals improve spatial
+The model uses vectorized NumPy calculations. Live runs have no fixed duration;
+detailed history is capped at 24 hours with a minimum one-second step (86,401
+retained samples). Each update processes at most 4,096 new samples so long
+catch-up periods can be split across refreshes. Smaller intervals improve spatial
 resolution; the default ten seconds is a useful balance for interactive use.
 Dateline crossings are broken in the plot to avoid misleading connecting lines.
 
@@ -101,7 +136,12 @@ uv build
 ```
 
 Modules under `src/virtual_satellite_saa_demo/` separate the orbit (`orbit.py`),
-radiation and memory (`radiation.py`), plots (`plotting.py`), and web interface
-(`app.py`). Tests cover orbital behavior, validation, exposure scaling,
+radiation and memory (`radiation.py`), incremental state and clock (`live.py`),
+plots (`plotting.py`), browser animation (`animation.py` and `orbit_component/`),
+and web interface (`app.py`). The browser component is bundled and needs no CDN or
+frontend build. Tests cover orbital behavior, validation, exposure scaling,
 reproducibility, memory flips, sensitivity scaling, polar enhancement, and
-running/scrubbing/restarting the interface.
+refresh-independent randomness, history retention, pause/resume, and the interface.
+
+With Node.js installed, `uv run pytest` also checks that browser orbital coordinates
+match Python and tests animation timing and the component's update handling.

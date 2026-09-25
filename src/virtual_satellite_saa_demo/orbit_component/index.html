@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <style>
+    html,body { margin:0; background:#0e1726; overflow:hidden; }
+    #map { position:relative; width:100%; aspect-ratio:12/5.5; }
+    img,canvas { position:absolute; inset:0; width:100%; height:100%; }
+    #status { position:absolute; left:7%; top:5%; color:#cad6e6; background:#0e1726d9;
+              padding:3px 6px; font:12px sans-serif; }
+  </style>
+</head>
+<body>
+  <div id="map" role="img" aria-label="Animated satellite ground track and recorded radiation errors">
+    <img id="background" alt="World map with latitude and longitude grid">
+    <canvas id="history"></canvas><canvas id="motion"></canvas>
+    <span id="status"></span>
+  </div>
+  <script src="orbit.js"></script>
+  <script src="render.js"></script>
+</body>
+</html>

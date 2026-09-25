@@ -26,13 +26,14 @@ def polar_intensity(latitude_deg):
     does not trace the radiation belts or represent a measured particle flux.
     """
     fraction = np.clip((np.abs(np.asarray(latitude_deg)) - 55) / 25, 0, 1)
-    return fraction ** 2 * (3 - 2 * fraction)
+    return fraction**2 * (3 - 2 * fraction)
 
 
 def radiation_intensity(latitude_deg, longitude_deg):
     """Combined environmental field relative to the default SAA peak rate."""
-    return (saa_intensity(latitude_deg, longitude_deg)
-            + POLAR_PEAK_RATE / SAA_PEAK_RATE * polar_intensity(latitude_deg))
+    return saa_intensity(
+        latitude_deg, longitude_deg
+    ) + POLAR_PEAK_RATE / SAA_PEAK_RATE * polar_intensity(latitude_deg)
 
 
 @dataclass(frozen=True)
@@ -45,39 +46,78 @@ class RadiationResult:
 
     def memory_at(self, sample_index: int) -> NDArray[np.bool_]:
         """Reconstruct memory initially filled with zeros; repeated flips cancel."""
-        total = int(self.counts[:sample_index + 1].sum())
-        return (np.bincount(self.bit_addresses[:total], minlength=MEMORY_BITS) % 2).astype(bool)
+        total = int(self.counts[: sample_index + 1].sum())
+        return (
+            np.bincount(self.bit_addresses[:total], minlength=MEMORY_BITS) % 2
+        ).astype(bool)
 
 
-def generate_errors(track: GroundTrack, altitude_km: float, seed: int = 42,
-                    background_rate: float = 0.002, saa_peak_rate: float = SAA_PEAK_RATE,
-                    *, polar_peak_rate: float = POLAR_PEAK_RATE,
-                    memory_sensitivity: float = 1.0) -> RadiationResult:
-    """Rates are for the whole memory, in upsets/s, at a 550 km reference.
-
-    Trapezoidal integration approximates the exposure per sampling interval.
-    Events are plotted at interval endpoints. Altitude scaling is illustrative.
-    Sensitivity linearly scales all upset rates, not the environmental field;
-    lower sensitivity reduces expected counts but does not exclude any region.
-    """
+def upset_rates(
+    track: GroundTrack,
+    altitude_km: float,
+    memory_sensitivity: float = 1.0,
+    background_rate: float = 0.002,
+    saa_peak_rate: float = SAA_PEAK_RATE,
+    polar_peak_rate: float = POLAR_PEAK_RATE,
+) -> NDArray[np.float64]:
+    """Shared whole-memory rates for batch and live simulations, in upsets/s."""
     if not np.isfinite(altitude_km) or not 160 <= altitude_km <= 2000:
         raise ValueError("altitude_km must be between 160 and 2000.")
     if not np.isfinite(memory_sensitivity) or not 0.001 <= memory_sensitivity <= 10:
         raise ValueError("memory_sensitivity must be between 0.001 and 10.")
-    if any(not np.isfinite(rate) or not 0 <= rate <= 1
-           for rate in (background_rate, saa_peak_rate, polar_peak_rate)):
+    if any(
+        not np.isfinite(rate) or not 0 <= rate <= 1
+        for rate in (background_rate, saa_peak_rate, polar_peak_rate)
+    ):
         raise ValueError("Rates must be finite and between 0 and 1 upset/s.")
-    if (track.time_s.ndim != 1 or len(track.time_s) == 0
-            or track.time_s.shape != track.latitude_deg.shape
-            or track.time_s.shape != track.longitude_deg.shape
-            or not all(np.isfinite(a).all() for a in (track.time_s, track.latitude_deg, track.longitude_deg))
-            or np.any(np.diff(track.time_s) <= 0)):
-        raise ValueError("Track must contain matching finite arrays with increasing times.")
+    if (
+        track.time_s.ndim != 1
+        or len(track.time_s) == 0
+        or track.time_s.shape != track.latitude_deg.shape
+        or track.time_s.shape != track.longitude_deg.shape
+        or not all(
+            np.isfinite(a).all()
+            for a in (track.time_s, track.latitude_deg, track.longitude_deg)
+        )
+        or np.any(np.diff(track.time_s) <= 0)
+    ):
+        raise ValueError(
+            "Track must contain matching finite arrays with increasing times."
+        )
     saa = saa_intensity(track.latitude_deg, track.longitude_deg)
     polar = polar_intensity(track.latitude_deg)
-    intensity = radiation_intensity(track.latitude_deg, track.longitude_deg)
     scale = np.exp((altitude_km - 550) / 1000)
-    rates = memory_sensitivity * (background_rate + saa_peak_rate * saa + polar_peak_rate * polar) * scale
+    return (
+        memory_sensitivity
+        * (background_rate + saa_peak_rate * saa + polar_peak_rate * polar)
+        * scale
+    )
+
+
+def generate_errors(
+    track: GroundTrack,
+    altitude_km: float,
+    seed: int = 42,
+    background_rate: float = 0.002,
+    saa_peak_rate: float = SAA_PEAK_RATE,
+    *,
+    polar_peak_rate: float = POLAR_PEAK_RATE,
+    memory_sensitivity: float = 1.0,
+) -> RadiationResult:
+    """Generate Poisson upsets using trapezoidal exposure integration.
+
+    Positions are interval endpoints. Sensitivity scales all rates linearly;
+    it does not exclude any region. Altitude scaling is illustrative.
+    """
+    rates = upset_rates(
+        track,
+        altitude_km,
+        memory_sensitivity,
+        background_rate,
+        saa_peak_rate,
+        polar_peak_rate,
+    )
+    intensity = radiation_intensity(track.latitude_deg, track.longitude_deg)
     exposure = np.zeros_like(track.time_s, dtype=float)
     exposure[1:] = (rates[:-1] + rates[1:]) * 0.5 * np.diff(track.time_s)
     rng = np.random.default_rng(seed)

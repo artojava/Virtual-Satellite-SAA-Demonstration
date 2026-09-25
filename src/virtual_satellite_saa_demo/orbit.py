@@ -21,9 +21,12 @@ class OrbitConfig:
 
     def __post_init__(self) -> None:
         limits = {
-            "altitude_km": (160, 2000), "inclination_deg": (0, 180),
-            "speed_multiplier": (0.25, 4), "duration_hours": (0.1, 24),
-            "step_seconds": (1, 120), "start_longitude_deg": (-180, 180),
+            "altitude_km": (160, 2000),
+            "inclination_deg": (0, 180),
+            "speed_multiplier": (0.25, 4),
+            "duration_hours": (0.1, 24),
+            "step_seconds": (1, 120),
+            "start_longitude_deg": (-180, 180),
         }
         for name, (low, high) in limits.items():
             value = getattr(self, name)
@@ -32,7 +35,10 @@ class OrbitConfig:
 
     @property
     def speed_km_s(self) -> float:
-        return float(np.sqrt(MU_KM3_S2 / (EARTH_RADIUS_KM + self.altitude_km))) * self.speed_multiplier
+        return (
+            float(np.sqrt(MU_KM3_S2 / (EARTH_RADIUS_KM + self.altitude_km)))
+            * self.speed_multiplier
+        )
 
     @property
     def period_seconds(self) -> float:
@@ -54,10 +60,22 @@ def simulate_orbit(config: OrbitConfig) -> GroundTrack:
     """
     end = config.duration_hours * 3600
     time = np.append(np.arange(0, end, config.step_seconds), end)
+    return orbit_at_times(config, time)
+
+
+def orbit_at_times(config: OrbitConfig, time: NDArray[np.float64]) -> GroundTrack:
+    """Evaluate absolute mission times so live updates never reset orbital phase."""
+    time = np.asarray(time, dtype=float)
+    if time.ndim != 1 or not np.isfinite(time).all() or np.any(time < 0):
+        raise ValueError("Times must be a finite, nonnegative one-dimensional array.")
     phase = 2 * np.pi * time / config.period_seconds
     inclination = np.deg2rad(config.inclination_deg)
-    latitude = np.rad2deg(np.arcsin(np.clip(np.sin(inclination) * np.sin(phase), -1, 1)))
-    longitude = np.rad2deg(np.arctan2(np.cos(inclination) * np.sin(phase), np.cos(phase)))
+    latitude = np.rad2deg(
+        np.arcsin(np.clip(np.sin(inclination) * np.sin(phase), -1, 1))
+    )
+    longitude = np.rad2deg(
+        np.arctan2(np.cos(inclination) * np.sin(phase), np.cos(phase))
+    )
     longitude += config.start_longitude_deg - 360 * time / SIDEREAL_DAY_S
     longitude = (longitude + 180) % 360 - 180
     return GroundTrack(time, latitude, longitude)
