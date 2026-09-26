@@ -1,13 +1,18 @@
 import json
-from pathlib import Path
 import shutil
 import subprocess
+from pathlib import Path
 
 import numpy as np
 import pytest
 
 from virtual_satellite_saa_demo.animation import animation_payload
-from virtual_satellite_saa_demo.orbit import OrbitConfig, SIDEREAL_DAY_S, orbit_at_times, simulate_orbit
+from virtual_satellite_saa_demo.orbit import (
+    SIDEREAL_DAY_S,
+    OrbitConfig,
+    orbit_at_times,
+    simulate_orbit,
+)
 from virtual_satellite_saa_demo.radiation import generate_errors
 
 COMPONENT = Path(__file__).parents[1] / "src/virtual_satellite_saa_demo/orbit_component"

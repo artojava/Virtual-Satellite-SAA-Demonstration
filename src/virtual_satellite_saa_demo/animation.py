@@ -21,7 +21,7 @@ _component = components.declare_component(
 @lru_cache(maxsize=2)
 def map_background(show_areas: bool) -> dict:
     """Render the static map once per overlay setting, with exact plot bounds."""
-    empty = np.empty(0)
+    empty = np.empty(0, dtype=int)
     figure = ground_track_figure(
         GroundTrack(empty, empty, empty),
         RadiationResult(empty, empty, empty, empty),
@@ -78,12 +78,16 @@ def animation_payload(
             track.longitude_deg[samples],
             track.latitude_deg[samples],
         )).tolist(),
-        "events": (mission_errors if mission_errors is not None else np.column_stack((
-            track.time_s[events],
-            track.longitude_deg[events],
-            track.latitude_deg[events],
-            radiation.counts[events],
-        ))).tolist(),
+        "events": (
+            mission_errors
+            if mission_errors is not None
+            else np.column_stack((
+                track.time_s[events],
+                track.longitude_deg[events],
+                track.latitude_deg[events],
+                radiation.counts[events],
+            ))
+        ).tolist(),
     }
 
 

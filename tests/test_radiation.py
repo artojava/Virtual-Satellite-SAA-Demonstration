@@ -2,7 +2,12 @@ import numpy as np
 import pytest
 
 from virtual_satellite_saa_demo.orbit import GroundTrack, OrbitConfig, simulate_orbit
-from virtual_satellite_saa_demo.radiation import RadiationResult, generate_errors, polar_intensity, saa_intensity
+from virtual_satellite_saa_demo.radiation import (
+    RadiationResult,
+    generate_errors,
+    polar_intensity,
+    saa_intensity,
+)
 
 
 def stationary_track(lat, lon, step=10):
